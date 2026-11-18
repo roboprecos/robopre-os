@@ -18,6 +18,11 @@ function normalizeText(s) {
   return stripAccents(s).toLowerCase().replace(/['’`]/g, '');
 }
 
+function hasWord(text, phrase) {
+  const escaped = phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+');
+  return new RegExp(`\\b${escaped}\\b`, 'i').test(text);
+}
+
 function parsePrice(val) {
   if (typeof val === 'number') return val > 0 ? val : null;
   if (!val) return null;
@@ -38,20 +43,17 @@ function parsePrice(val) {
   return isNaN(num) || num <= 0 ? null : num;
 }
 
-// Gera uma 2ª tentativa de busca limpa caso o nome completo tenha "– MARCA", "100ML", etc.
 function buildFallbackQuery(rawName) {
-  let s = stripAccents(rawName)
-    .split(/\s+[–-]\s+/)[0] // Remove "– LATTAFA", "– AL WATANIAH", etc.
+  return stripAccents(rawName)
+    .split(/\s+[–-]\s+/)[0]
     .replace(/['’`+]/g, ' ')
     .replace(/\b\d+\s*ml\b/gi, ' ')
     .replace(/\bVICTORIA\s*S?\s+SECRETS?\b/gi, ' ')
     .replace(/\s+/g, ' ')
     .trim();
-
-  return s;
 }
 
-function scoreMatch(candidateText, perfumeName) {
+function scoreMatch(candidateText, perfumeName, custoPago, precoCandidato) {
   const cand = normalizeText(candidateText);
   const target = normalizeText(perfumeName);
   const tokens = target
@@ -61,27 +63,64 @@ function scoreMatch(candidateText, perfumeName) {
 
   let score = 0;
   for (const token of tokens) {
-    if (cand.includes(token)) score += 2;
+    if (hasWord(cand, token) || cand.includes(token)) score += 2;
   }
 
-  // Evita pegar decants, amostras, miniaturas ou kits quando o produto não for isso
-  const evitarSeNaoPediu = ['decant', 'amostra', 'flaconete', 'miniatura', 'mini', 'bolso', 'kit', 'sacola', 'hidratante'];
+  // Não mistura perfume com body splash, hidratante, creme, decant, amostra, kit, etc.
+  const evitarSeNaoPediu = [
+    'body splash',
+    'splash',
+    'hidratante',
+    'creme',
+    'locao',
+    'desodorante',
+    'sabonete',
+    'oleo',
+    'shower',
+    'gel',
+    'decant',
+    'amostra',
+    'flaconete',
+    'miniatura',
+    'mini',
+    'bolso',
+    'kit',
+    'sacola',
+    'refil',
+    'tester',
+    'hair mist'
+  ];
+
   for (const palavra of evitarSeNaoPediu) {
-    if (cand.includes(palavra) && !target.includes(palavra)) {
-      score -= 10;
+    if (hasWord(cand, palavra) && !hasWord(target, palavra)) {
+      score -= 12;
+    }
+  }
+
+  // Se o produto NO SEU CATÁLOGO pede algum tipo específico (ex: body splash ou hidratante),
+  // dá bônus extra para o card que também tem essa palavra
+  for (const tipo of ['body splash', 'hidratante', 'kit', 'hair mist']) {
+    if (hasWord(target, tipo) && hasWord(cand, tipo)) {
+      score += 4;
     }
   }
 
   // Evita frascos pequenos (<= 30ml) se o perfume não pedir esse tamanho pequeno
   const mlCand = cand.match(/\b(\d+)\s*ml\b/);
   if (mlCand && Number(mlCand[1]) <= 30 && !target.includes(`${mlCand[1]}ml`) && !target.includes(`${mlCand[1]} ml`)) {
-    score -= 10;
+    score -= 12;
   }
 
-  const mlDesejado = target.match(/(\d+)\s*ml/);
+  const mlDesejado = target.match(/\b(\d+)\s*ml\b/);
   if (mlDesejado && mlCand) {
     if (mlDesejado[1] === mlCand[1]) score += 5;
     else score -= 8;
+  }
+
+  // Proteção extra: se o preço encontrado for menor que 35% do que você pagou,
+  // provavelmente é amostra/refil/acessório que escapou sem descrição
+  if (custoPago && custoPago >= 40 && precoCandidato < custoPago * 0.35) {
+    score -= 6;
   }
 
   return score;
@@ -102,7 +141,7 @@ function extractBrlPriceFromText(text) {
   return Math.min(...prices);
 }
 
-async function findBestResultOnPage(page, perfumeName) {
+async function findBestResultOnPage(page, perfumeName, custoPago) {
   const candidates = await page.evaluate(() => {
     const blocks = [...document.querySelectorAll('a, article, li, div')];
     const results = [];
@@ -125,7 +164,7 @@ async function findBestResultOnPage(page, perfumeName) {
     const preco = extractBrlPriceFromText(item.text);
     if (!preco) continue;
 
-    const score = scoreMatch(item.text, perfumeName);
+    const score = scoreMatch(item.text, perfumeName, custoPago, preco);
     if (score > bestScore || (score === bestScore && best && item.text.length < best.text.length)) {
       bestScore = score;
       best = { ...item, preco };
@@ -195,14 +234,14 @@ async function localizarInputBusca(page) {
   return input;
 }
 
-async function buscarNaLoja(page, loja, inputBusca, termo, nomeReferencia) {
+async function buscarNaLoja(page, loja, inputBusca, termo, nomeReferencia, custoPago) {
   const temPlaceholder = loja.urlBusca.includes('{q}');
 
   if (temPlaceholder) {
     const url = loja.urlBusca.replaceAll('{q}', encodeURIComponent(termo));
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 25000 });
     await page.waitForTimeout(2500);
-    const res = await findBestResultOnPage(page, nomeReferencia);
+    const res = await findBestResultOnPage(page, nomeReferencia, custoPago);
     res.url = res.urlEncontrada || url;
     return res;
   }
@@ -212,7 +251,7 @@ async function buscarNaLoja(page, loja, inputBusca, termo, nomeReferencia) {
   await inputBusca.fill(termo);
   await inputBusca.press('Enter').catch(() => {});
   await page.waitForTimeout(1800);
-  const res = await findBestResultOnPage(page, nomeReferencia);
+  const res = await findBestResultOnPage(page, nomeReferencia, custoPago);
   res.url = res.urlEncontrada || loja.urlBusca;
   return res;
 }
@@ -265,6 +304,7 @@ async function main() {
         for (const p of produtos) {
           const radarDoc = radarAtual.get(p.id);
           const termoBase = radarDoc?.termoBusca || p.nome;
+          const custoPago = Number(p.custo ?? p.custoUnitario ?? 0);
           const termo1 = stripAccents(termoBase).replace(/['’`]/g, '').replace(/\s+/g, ' ').trim();
           const termo2 = buildFallbackQuery(termoBase);
           const anterior = resultadosPorProduto.get(p.id).get(loja.nome.toLowerCase());
@@ -280,12 +320,10 @@ async function main() {
             if (!temPlaceholder && !inputBusca) {
               res = { ok: false, url: loja.urlBusca, motivo: 'Campo de busca não encontrado' };
             } else {
-              // 1ª tentativa: termo completo limpo
-              res = await buscarNaLoja(page, loja, inputBusca, termo1, termoBase);
+              res = await buscarNaLoja(page, loja, inputBusca, termo1, termoBase, custoPago);
 
-              // 2ª tentativa (fallback): se não achou e existir uma versão mais curta sem marca/ML
               if (!res.ok && termo2 && termo2.toLowerCase() !== termo1.toLowerCase()) {
-                res = await buscarNaLoja(page, loja, inputBusca, termo2, termoBase);
+                res = await buscarNaLoja(page, loja, inputBusca, termo2, termoBase, custoPago);
               }
             }
           } catch (err) {
@@ -323,20 +361,20 @@ async function main() {
             });
           } else {
             console.log(`  ✖ ${p.nome}: ${res.motivo}`);
+            // Se antes tinha pego um produto errado ou não achou agora, limpa o preço antigo
             resultadosPorProduto.get(p.id).set(loja.nome.toLowerCase(), {
               loja: loja.nome,
               url: res.url || loja.urlBusca,
-              ultimoPreco: anterior?.ultimoPreco ?? null,
-              precoAnterior: anterior?.precoAnterior ?? null,
+              ultimoPreco: null,
+              precoAnterior: null,
               diferenca: 0,
-              emEstoque: anterior?.emEstoque ?? true,
-              produtoEncontrado: anterior?.produtoEncontrado ?? '',
+              emEstoque: true,
+              produtoEncontrado: '',
               statusLeitura: res.motivo,
               atualizadoEm: new Date().toISOString()
             });
           }
 
-          // Salva no Firebase a cada perfume (para ir aparecendo ao vivo no App!)
           const listaFinal = Array.from(resultadosPorProduto.get(p.id).values());
           await db.collection('radarPrecos').doc(p.id).set({
             resultadosBusca: listaFinal,
