@@ -15,7 +15,7 @@ function stripAccents(s) {
 }
 
 function normalizeText(s) {
-  return stripAccents(s).toLowerCase();
+  return stripAccents(s).toLowerCase().replace(/['’`]/g, '');
 }
 
 function parsePrice(val) {
@@ -38,21 +38,49 @@ function parsePrice(val) {
   return isNaN(num) || num <= 0 ? null : num;
 }
 
+// Gera uma 2ª tentativa de busca limpa caso o nome completo tenha "– MARCA", "100ML", etc.
+function buildFallbackQuery(rawName) {
+  let s = stripAccents(rawName)
+    .split(/\s+[–-]\s+/)[0] // Remove "– LATTAFA", "– AL WATANIAH", etc.
+    .replace(/['’`+]/g, ' ')
+    .replace(/\b\d+\s*ml\b/gi, ' ')
+    .replace(/\bVICTORIA\s*S?\s+SECRETS?\b/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return s;
+}
+
 function scoreMatch(candidateText, perfumeName) {
   const cand = normalizeText(candidateText);
   const target = normalizeText(perfumeName);
-  const tokens = target.split(/\s+/).filter((t) => t.length > 1);
+  const tokens = target
+    .replace(/\b\d+\s*ml\b/g, ' ')
+    .split(/[\s–\-+]+/)
+    .filter((t) => t.length > 2 && !['para', 'com', 'lattafa', 'alhambra', 'maison', 'wataniah'].includes(t));
 
   let score = 0;
   for (const token of tokens) {
     if (cand.includes(token)) score += 2;
   }
 
-  // Proteção para não misturar frascos de tamanhos diferentes (ex: 50ml vs 100ml)
+  // Evita pegar decants, amostras, miniaturas ou kits quando o produto não for isso
+  const evitarSeNaoPediu = ['decant', 'amostra', 'flaconete', 'miniatura', 'mini', 'bolso', 'kit', 'sacola', 'hidratante'];
+  for (const palavra of evitarSeNaoPediu) {
+    if (cand.includes(palavra) && !target.includes(palavra)) {
+      score -= 10;
+    }
+  }
+
+  // Evita frascos pequenos (<= 30ml) se o perfume não pedir esse tamanho pequeno
+  const mlCand = cand.match(/\b(\d+)\s*ml\b/);
+  if (mlCand && Number(mlCand[1]) <= 30 && !target.includes(`${mlCand[1]}ml`) && !target.includes(`${mlCand[1]} ml`)) {
+    score -= 10;
+  }
+
   const mlDesejado = target.match(/(\d+)\s*ml/);
-  const mlCandidato = cand.match(/(\d+)\s*ml/);
-  if (mlDesejado && mlCandidato) {
-    if (mlDesejado[1] === mlCandidato[1]) score += 5;
+  if (mlDesejado && mlCand) {
+    if (mlDesejado[1] === mlCand[1]) score += 5;
     else score -= 8;
   }
 
@@ -65,7 +93,7 @@ function extractBrlPriceFromText(text) {
   let match;
 
   while ((match = regex.exec(text)) !== null) {
-    if (match[1]) continue; // Ignora preços parcelados tipo "10x de R$"
+    if (match[1]) continue;
     const val = parsePrice(match[2]);
     if (val) prices.push(val);
   }
@@ -167,6 +195,28 @@ async function localizarInputBusca(page) {
   return input;
 }
 
+async function buscarNaLoja(page, loja, inputBusca, termo, nomeReferencia) {
+  const temPlaceholder = loja.urlBusca.includes('{q}');
+
+  if (temPlaceholder) {
+    const url = loja.urlBusca.replaceAll('{q}', encodeURIComponent(termo));
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 25000 });
+    await page.waitForTimeout(2500);
+    const res = await findBestResultOnPage(page, nomeReferencia);
+    res.url = res.urlEncontrada || url;
+    return res;
+  }
+
+  await inputBusca.click();
+  await inputBusca.fill('');
+  await inputBusca.fill(termo);
+  await inputBusca.press('Enter').catch(() => {});
+  await page.waitForTimeout(1800);
+  const res = await findBestResultOnPage(page, nomeReferencia);
+  res.url = res.urlEncontrada || loja.urlBusca;
+  return res;
+}
+
 async function main() {
   const [lojasSnap, produtosSnap, radarSnap] = await Promise.all([
     db.collection('lojas').limit(5).get(),
@@ -210,42 +260,32 @@ async function main() {
           await page.goto(loja.urlBusca, { waitUntil: 'domcontentloaded', timeout: 25000 });
           await page.waitForTimeout(3000);
           inputBusca = await localizarInputBusca(page);
-          if (!inputBusca) {
-            console.log(`  ✖ Campo de busca não encontrado em ${loja.nome}`);
-          }
         }
 
         for (const p of produtos) {
           const radarDoc = radarAtual.get(p.id);
-          const termoLimpo = stripAccents(radarDoc?.termoBusca || p.nome).trim();
+          const termoBase = radarDoc?.termoBusca || p.nome;
+          const termo1 = stripAccents(termoBase).replace(/['’`]/g, '').replace(/\s+/g, ' ').trim();
+          const termo2 = buildFallbackQuery(termoBase);
           const anterior = resultadosPorProduto.get(p.id).get(loja.nome.toLowerCase());
 
           let res;
           try {
-            if (temPlaceholder) {
-              const url = loja.urlBusca.replaceAll('{q}', encodeURIComponent(termoLimpo));
-              await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 25000 });
+            if (!temPlaceholder && (!inputBusca || !(await inputBusca.isVisible().catch(() => false)))) {
+              await page.goto(loja.urlBusca, { waitUntil: 'domcontentloaded', timeout: 25000 });
               await page.waitForTimeout(2500);
-              res = await findBestResultOnPage(page, termoLimpo);
-              res.url = res.urlEncontrada || url;
-            } else {
-              // Se o campo sumiu por algum motivo, recarrega a página inicial da loja
-              if (!inputBusca || !(await inputBusca.isVisible().catch(() => false))) {
-                await page.goto(loja.urlBusca, { waitUntil: 'domcontentloaded', timeout: 25000 });
-                await page.waitForTimeout(2500);
-                inputBusca = await localizarInputBusca(page);
-              }
+              inputBusca = await localizarInputBusca(page);
+            }
 
-              if (!inputBusca) {
-                res = { ok: false, url: loja.urlBusca, motivo: 'Campo de busca não encontrado' };
-              } else {
-                await inputBusca.click();
-                await inputBusca.fill('');
-                await inputBusca.fill(termoLimpo);
-                await inputBusca.press('Enter').catch(() => {});
-                await page.waitForTimeout(2000);
-                res = await findBestResultOnPage(page, termoLimpo);
-                res.url = res.urlEncontrada || loja.urlBusca;
+            if (!temPlaceholder && !inputBusca) {
+              res = { ok: false, url: loja.urlBusca, motivo: 'Campo de busca não encontrado' };
+            } else {
+              // 1ª tentativa: termo completo limpo
+              res = await buscarNaLoja(page, loja, inputBusca, termo1, termoBase);
+
+              // 2ª tentativa (fallback): se não achou e existir uma versão mais curta sem marca/ML
+              if (!res.ok && termo2 && termo2.toLowerCase() !== termo1.toLowerCase()) {
+                res = await buscarNaLoja(page, loja, inputBusca, termo2, termoBase);
               }
             }
           } catch (err) {
@@ -256,7 +296,7 @@ async function main() {
             const precoAnt = anterior?.ultimoPreco ?? null;
             const diferenca = precoAnt != null ? Number((res.preco - precoAnt).toFixed(2)) : 0;
 
-            console.log(`  ✔ ${p.nome}: R$ ${res.preco} (variação: ${diferenca})`);
+            console.log(`  ✔ ${p.nome}: R$ ${res.preco} (${res.produtoEncontrado})`);
 
             if (precoAnt != null && diferenca !== 0) {
               await db.collection('variacoes').add({
@@ -295,6 +335,13 @@ async function main() {
               atualizadoEm: new Date().toISOString()
             });
           }
+
+          // Salva no Firebase a cada perfume (para ir aparecendo ao vivo no App!)
+          const listaFinal = Array.from(resultadosPorProduto.get(p.id).values());
+          await db.collection('radarPrecos').doc(p.id).set({
+            resultadosBusca: listaFinal,
+            atualizadoEm: new Date().toISOString()
+          }, { merge: true });
         }
       } finally {
         await page.close();
@@ -302,15 +349,6 @@ async function main() {
     }
   } finally {
     await browser.close();
-  }
-
-  // Salva os resultados na coleção separada "radarPrecos" (sem tocar na coleção "produtos")
-  for (const p of produtos) {
-    const listaFinal = Array.from(resultadosPorProduto.get(p.id).values());
-    await db.collection('radarPrecos').doc(p.id).set({
-      resultadosBusca: listaFinal,
-      atualizadoEm: new Date().toISOString()
-    }, { merge: true });
   }
 
   console.log('\nAtualização finalizada!');
