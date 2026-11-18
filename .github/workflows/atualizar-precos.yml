@@ -1,0 +1,32 @@
+name: Atualizar Precos dos Perfumes
+
+on:
+  schedule:
+    - cron: '0 10 * * *'
+  workflow_dispatch:
+
+jobs:
+  atualizar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Instalar dependências do robô
+        working-directory: ./scraper
+        run: npm install
+
+      - name: Instalar navegador Chromium (Playwright)
+        working-directory: ./scraper
+        run: npx playwright install chromium --with-deps
+
+      - name: Rodar busca de preços
+        working-directory: ./scraper
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: node index.js
