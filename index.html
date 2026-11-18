@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BW Imports — Radar de Compras</title>
+  <style>
+    :root {
+      --bg: #f1f5f9;
+      --card: #ffffff;
+      --text: #0f172a;
+      --muted: #64748b;
+      --border: #e2e8f0;
+      --primary: #111827;
+      --green: #16a34a;
+      --green-bg: #dcfce7;
+      --red: #e11d48;
+      --red-bg: #ffe4e6;
+      --blue: #2563eb;
+      --blue-bg: #eff6ff;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.4;
+    }
+
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 18px 14px 64px;
+    }
+
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+
+    .top-bar h1 { font-size: 1.3rem; margin: 0; }
+
+    .tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 18px;
+      flex-wrap: wrap;
+      border-bottom: 2px solid var(--border);
+      padding-bottom: 10px;
+    }
+
+    .tab-btn {
+      padding: 10px 16px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: #fff;
+      color: var(--text);
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .tab-btn.active {
+      background: var(--primary);
+      color: #fff;
+      border-color: var(--primary);
+    }
+
+    .tab-badge {
+      background: var(--red);
+      color: #fff;
+      font-size: 0.72rem;
+      padding: 1px 7px;
+      border-radius: 999px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px;
+      margin-bottom: 16px;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    }
+
+    .perfume-card { border-left: 6px solid var(--green); }
+    .perfume-card.alerta { border-left-color: var(--red); }
+
+    input, button, select { font-family: inherit; font-size: 0.92rem; }
+
+    input, select {
+      padding: 9px 10px;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      outline: none;
+    }
+
+    input:focus { border-color: var(--primary); }
+
+    button {
+      padding: 8px 14px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: #fff;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    button:hover { background: #f8fafc; }
+
+    .btn-primary {
+      background: var(--primary);
+      color: #fff;
+      border-color: var(--primary);
+    }
+
+    .btn-primary:hover { background: #1f2937; }
+
+    .btn-update {
+      background: var(--blue);
+      color: #fff;
+      border-color: var(--blue);
+    }
+
+    .btn-update:hover { background: #1d4ed8; }
+
+    .btn-danger {
+      color: var(--red);
+      border-color: transparent;
+      background: transparent;
+      padding: 4px 8px;
+    }
+
+    .btn-danger:hover { background: var(--red-bg); }
+
+    .toolbar {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .toolbar input[type="search"] { flex: 1 1 220px; }
+
+    .perfume-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .perfume-title { margin: 0 0 6px; font-size: 1.08rem; }
+
+    .badges-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .badge {
+      display: inline-block;
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 3px 9px;
+      border-radius: 999px;
+    }
+
+    .badge-ok { background: var(--green-bg); color: #15803d; }
+    .badge-alerta { background: var(--red-bg); color: #be123c; }
+    .badge-custo { background: #e2e8f0; color: #1e293b; }
+
+    .melhor-banner {
+      margin-top: 12px;
+      padding: 10px 14px;
+      border-radius: 8px;
+      background: var(--green-bg);
+      border: 1px solid #86efac;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .melhor-banner strong { color: #14532d; font-size: 0.95rem; }
+    .melhor-banner a {
+      background: var(--green);
+      color: #fff;
+      text-decoration: none;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      font-weight: 700;
+    }
+
+    .lojas-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .loja-box {
+      border: 1px solid var(--border);
+      background: #f8fafc;
+      border-radius: 8px;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 4px;
+    }
+
+    .loja-box.vencedora {
+      background: #f0fdf4;
+      border: 2px solid var(--green);
+    }
+
+    .loja-box-nome {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--text);
+      text-decoration: none;
+      display: block;
+    }
+
+    .loja-box-nome:hover { text-decoration: underline; }
+    .loja-box-preco { font-size: 1.1rem; font-weight: 800; margin: 2px 0; }
+
+    .delta-down { color: var(--green); font-size: 0.75rem; font-weight: 700; }
+    .delta-up { color: var(--red); font-size: 0.75rem; font-weight: 700; }
+    .loja-box-meta { font-size: 0.7rem; color: var(--muted); }
+
+    .form-grid { display: flex; gap: 8px; flex-wrap: wrap; }
+    .form-grid input[name="loja"] { flex: 1 1 140px; }
+    .form-grid input[name="urlBusca"] { flex: 2 1 260px; }
+
+    .loja-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      margin-top: 8px;
+      background: #f8fafc;
+      gap: 8px;
+    }
+
+    .variacao-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      margin-bottom: 10px;
+      background: #fff;
+      flex-wrap: wrap;
+    }
+
+    .variacao-item.desceu { border-left: 5px solid var(--green); }
+    .variacao-item.subiu { border-left: 5px solid var(--red); }
+
+    .hidden { display: none !important; }
+    .hint { font-size: 0.8rem; color: var(--muted); margin-top: 6px; }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <div class="top-bar">
+      <h1>🧴 BW Imports — Radar de Compras</h1>
+      <button id="btn-atualizar-agora" class="btn-update">🔄 Atualizar Preços Agora</button>
+    </div>
+
+    <div id="status-update" class="card hidden" style="background: var(--blue-bg); border-color: #bfdbfe; color: #1e40af; padding: 10px 14px;"></div>
+
+    <!-- ABAS -->
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="estoque">📦 Estoque &amp; Preços</button>
+      <button class="tab-btn" data-tab="variacoes">
+        📈 Variações <span id="badge-variacoes" class="tab-badge hidden">0</span>
+      </button>
+      <button class="tab-btn" data-tab="cadastros">⚙️ Lojas &amp; Config</button>
+    </div>
+
+    <!-- ================= ABA 1: ESTOQUE & PREÇOS ================= -->
+    <section id="tab-estoque">
+      <div class="toolbar">
+        <input id="busca-input" type="search" placeholder="🔍 Buscar perfume do catálogo..." />
+        <label style="display: flex; align-items: center; gap: 6px; font-size: 0.9rem; cursor: pointer;">
+          <input id="filtro-recompra" type="checkbox" />
+          Só estoque zerado / baixo (≤ <span id="label-min-global">1</span>)
+        </label>
+        <label style="display: flex; align-items: center; gap: 6px; font-size: 0.9rem; cursor: pointer;">
+          <input id="filtro-abaixo-custo" type="checkbox" />
+          Só abaixo do que paguei
+        </label>
+      </div>
+
+      <div id="lista-perfumes">
+        <div class="card" style="text-align: center; color: var(--muted);">Carregando catálogo do Firebase...</div>
+      </div>
+    </section>
+
+    <!-- ================= ABA 2: VARIAÇÕES ================= -->
+    <section id="tab-variacoes" class="hidden">
+      <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
+          <div>
+            <strong>Histórico de Alterações de Preço</strong>
+            <div class="hint" style="margin: 2px 0 0;">Compara cada atualização com o último preço encontrado em cada loja.</div>
+          </div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <select id="filtro-variacao">
+              <option value="todas">Todas</option>
+              <option value="desceu">📉 Só o que abaixou</option>
+              <option value="subiu">📈 Só o que subiu</option>
+            </select>
+            <button id="btn-limpar-variacoes" class="btn-danger" style="border: 1px solid #fecdd3;">Limpar histórico</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="lista-variacoes"></div>
+    </section>
+
+    <!-- ================= ABA 3: LOJAS & CONFIG ================= -->
+    <section id="tab-cadastros" class="hidden">
+      <div class="card" style="background: #f8fafc;">
+        <span id="info-catalogo" style="font-weight: 700;">⏳ Conectando à coleção "produtos"...</span>
+        <div class="hint" style="margin-top: 4px;">
+          Seus perfumes, estoque e preço pago vêm direto do catálogo de vendas (somente leitura, sem risco de alterar seu sistema de vendas).
+        </div>
+      </div>
+
+      <!-- Cadastro de até 5 lojas -->
+      <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+          <strong>🏪 Lojas Salvas para Comparar</strong>
+          <span id="contador-lojas" class="badge badge-ok">0 / 5</span>
+        </div>
+
+        <form id="form-nova-loja" class="form-grid">
+          <input name="loja" type="text" placeholder="Nome da loja (ex: Dubay Perfumes)" required />
+          <input name="urlBusca" type="url" placeholder="Link (ex: https://dubayperfumes.vendizap.com)" required />
+          <button id="btn-add-loja" type="submit" class="btn-primary">+ Salvar Loja</button>
+        </form>
+        <div class="hint">
+          Salve até <strong>5 lojas</strong>. Se for site com barra de busca na URL, troque o termo por <code>{q}</code> (ex: <code>.../busca?q={q}</code>). Se for tipo Vendizap, cole o link principal.
+        </div>
+
+        <div id="lista-lojas-cadastro" style="margin-top: 12px;"></div>
+      </div>
+
+      <!-- Alerta de estoque mínimo padrão -->
+      <div class="card">
+        <strong style="display: block; margin-bottom: 8px;">⚠️ Alerta de Estoque Baixo</strong>
+        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+          <span>Considerar "precisa recomprar" quando o estoque for menor ou igual a:</span>
+          <input id="input-min-global" type="number" min="0" value="1" style="width: 80px;" />
+          <button id="btn-salvar-min" type="button">Salvar</button>
+        </div>
+      </div>
+
+      <!-- Configuração do botão Atualizar Agora -->
+      <div class="card">
+        <strong style="display: block; margin-bottom: 6px;">⚙️ Conectar Botão "Atualizar Preços Agora" ao GitHub (Opcional)</strong>
+        <div class="hint" style="margin-bottom: 10px;">
+          Salvo apenas neste navegador para disparar o robô sem precisar abrir o GitHub.
+        </div>
+        <form id="form-github-cfg" class="form-grid">
+          <input name="repo" type="text" placeholder="usuario/repositorio (ex: joao/radar-bw)" style="flex: 2 1 180px;" />
+          <input name="branch" type="text" placeholder="main" value="main" style="max-width: 110px;" />
+          <input name="token" type="password" placeholder="Token GitHub (Actions: Read & Write)" style="flex: 2 1 200px;" />
+          <button type="submit">Salvar Config</button>
+        </form>
+      </div>
+    </section>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/13.3.0/firebase-app.js";
+    import {
+      getFirestore,
+      collection,
+      addDoc,
+      deleteDoc,
+      setDoc,
+      doc,
+      onSnapshot,
+      query,
+      orderBy,
+      limit,
+      writeBatch
+    } from "https://www.gstatic.com/firebasejs/13.3.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyBiT9FRI6hCDSIO9IVpmyWjtcVHqSP6rA4",
+      authDomain: "bw-imports.firebaseapp.com",
+      projectId: "bw-imports",
+      storageBucket: "bw-imports.firebasestorage.app",
+      messagingSenderId: "176352978247",
+      appId: "1:176352978247:web:677d84c9d585e2910cd862",
+      measurementId: "G-6RFV42GW63"
+    };
+
+    const MAX_LOJAS = 5;
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    let produtosCache = [];
+    let radarMap = new Map();
+    let lojasCache = [];
+    let variacoesCache = [];
+    let estoqueMinGlobal = Number(localStorage.getItem("bw_min_estoque") ?? 1);
+
+    const listaPerfumesEl = document.getElementById("lista-perfumes");
+    const listaVariacoesEl = document.getElementById("lista-variacoes");
+    const listaLojasCadEl = document.getElementById("lista-lojas-cadastro");
+    const contadorLojasEl = document.getElementById("contador-lojas");
+    const badgeVariacoesEl = document.getElementById("badge-variacoes");
+    const infoCatalogoEl = document.getElementById("info-catalogo");
+    const buscaInput = document.getElementById("busca-input");
+    const filtroRecompra = document.getElementById("filtro-recompra");
+    const filtroAbaixoCusto = document.getElementById("filtro-abaixo-custo");
+    const filtroVariacao = document.getElementById("filtro-variacao");
+    const statusUpdateEl = document.getElementById("status-update");
+    const inputMinGlobal = document.getElementById("input-min-global");
+    const labelMinGlobal = document.getElementById("label-min-global");
+
+    inputMinGlobal.value = estoqueMinGlobal;
+    labelMinGlobal.textContent = estoqueMinGlobal;
+
+    function escapeHtml(str) {
+      return String(str ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    function sanitizeUrl(url) {
+      const trimmed = String(url ?? "").trim();
+      return /^https?:\/\//i.test(trimmed) ? trimmed : "#";
+    }
+
+    function montarUrlBusca(template, nomePerfume) {
+      return sanitizeUrl(String(template || "").replaceAll("{q}", encodeURIComponent(nomePerfume)));
+    }
+
+    function formatarMoeda(valor) {
+      return Number(valor).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+    }
+
+    // Troca de Abas
+    document.querySelectorAll(".tab-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("active"));
+        btn.classList.add("active");
+        const alvo = btn.dataset.tab;
+        ["estoque", "variacoes", "cadastros"].forEach((t) => {
+          document.getElementById(`tab-${t}`).classList.toggle("hidden", t !== alvo);
+        });
+      });
+    });
+
+    // 1. Ouve a coleção existente "produtos" (somente leitura)
+    onSnapshot(query(collection(db, "produtos"), orderBy("nome")), (snap) => {
+      produtosCache = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      infoCatalogoEl.textContent = `✅ ${produtosCache.length} produtos sincronizados direto da sua coleção "produtos".`;
+      renderizarEstoque();
+    }, (err) => {
+      infoCatalogoEl.textContent = `❌ Erro ao ler "produtos": ${err.message}`;
+      listaPerfumesEl.innerHTML = `<div class="card" style="color: var(--red);">Erro ao ler coleção "produtos": ${escapeHtml(err.message)}</div>`;
+    });
+
+    // 2. Ouve os preços encontrados pelo robô ("radarPrecos")
+    onSnapshot(collection(db, "radarPrecos"), (snap) => {
+      radarMap = new Map();
+      snap.docs.forEach((d) => radarMap.set(d.id, d.data()));
+      renderizarEstoque();
+    });
+
+    // 3. Ouve as lojas salvas ("lojas")
+    onSnapshot(query(collection(db, "lojas"), orderBy("nome")), (snap) => {
+      lojasCache = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      renderizarLojasCadastro();
+      renderizarEstoque();
+    });
+
+    // 4. Ouve histórico de variações ("variacoes")
+    onSnapshot(query(collection(db, "variacoes"), orderBy("data", "desc"), limit(100)), (snap) => {
+      variacoesCache = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      renderizarVariacoes();
+    });
+
+    function getCaixasOrdenadas(produto) {
+      const radar = radarMap.get(produto.id);
+      const resultados = radar?.resultadosBusca || [];
+      const termoParaLink = radar?.termoBusca || produto.nome || "";
+
+      const caixas = lojasCache.slice(0, MAX_LOJAS).map((loja) => {
+        const res = resultados.find((r) => r.loja?.toLowerCase() === loja.nome?.toLowerCase());
+        return {
+          loja: loja.nome,
+          url: res?.url || montarUrlBusca(loja.urlBusca, termoParaLink),
+          ultimoPreco: res?.ultimoPreco ?? null,
+          diferenca: res?.diferenca ?? 0,
+          emEstoque: res ? res.emEstoque : true,
+          produtoEncontrado: res?.produtoEncontrado || "",
+          statusLeitura: res?.statusLeitura || "aguardando atualização"
+        };
+      });
+
+      caixas.sort((a, b) => {
+        const aVal = a.emEstoque && a.ultimoPreco != null;
+        const bVal = b.emEstoque && b.ultimoPreco != null;
+        if (aVal && !bVal) return -1;
+        if (!aVal && bVal) return 1;
+        if (aVal && bVal) return a.ultimoPreco - b.ultimoPreco;
+        return 0;
+      });
+
+      return { caixas, radar };
+    }
+
+    function renderizarEstoque() {
+      const termo = buscaInput.value.trim().toLowerCase();
+      const soRecompra = filtroRecompra.checked;
+      const soAbaixoCusto = filtroAbaixoCusto.checked;
+
+      const filtrados = produtosCache.filter((p) => {
+        const nome = String(p.nome || "");
+        if (!nome.toLowerCase().includes(termo)) return false;
+
+        const estoqueAtual = Number(p.estoque ?? 0);
+        if (soRecompra && estoqueAtual > estoqueMinGlobal) return false;
+
+        if (soAbaixoCusto) {
+          const custoPago = Number(p.custo ?? p.custoUnitario ?? 0);
+          const { caixas } = getCaixasOrdenadas(p);
+          const melhor = caixas.find((c) => c.emEstoque && c.ultimoPreco != null);
+          if (!melhor || !custoPago || melhor.ultimoPreco >= custoPago) return false;
+        }
+
+        return true;
+      });
+
+      if (filtrados.length === 0) {
+        listaPerfumesEl.innerHTML = `<div class="card" style="text-align: center; color: var(--muted);">Nenhum produto encontrado com esses filtros.</div>`;
+        return;
+      }
+
+      listaPerfumesEl.innerHTML = filtrados.map((p) => {
+        const estoqueAtual = Number(p.estoque ?? 0);
+        const custoPago = p.custo ?? p.custoUnitario ?? null;
+        const custoBase = p.custoBase ?? null;
+        const precisaRecomprar = estoqueAtual <= estoqueMinGlobal;
+        const { caixas, radar } = getCaixasOrdenadas(p);
+
+        const disponiveis = caixas.filter((c) => c.emEstoque && c.ultimoPreco != null);
+        const vencedora = disponiveis[0] || null;
+        const segunda = disponiveis[1] || null;
+
+        let bannerHtml = "";
+        if (vencedora) {
+          const partesExtra = [];
+          if (segunda && segunda.ultimoPreco > vencedora.ultimoPreco) {
+            partesExtra.push(`economia de ${formatarMoeda(segunda.ultimoPreco - vencedora.ultimoPreco)} vs ${escapeHtml(segunda.loja)}`);
+          }
+          if (custoPago != null && custoPago > 0) {
+            const diffCusto = vencedora.ultimoPreco - custoPago;
+            if (diffCusto < 0) {
+              partesExtra.push(`🔥 ${formatarMoeda(Math.abs(diffCusto))} mais barato que você pagou!`);
+            } else if (diffCusto > 0) {
+              partesExtra.push(`${formatarMoeda(diffCusto)} acima do seu custo`);
+            } else {
+              partesExtra.push(`mesmo preço que você pagou`);
+            }
+          }
+
+          bannerHtml = `
+            <div class="melhor-banner">
+              <div>
+                <strong>🏆 Comprar na ${escapeHtml(vencedora.loja)} por ${formatarMoeda(vencedora.ultimoPreco)}</strong>
+                ${partesExtra.length ? `<div style="font-size: 0.82rem; color: #166534; margin-top: 2px;">${partesExtra.join(" • ")}</div>` : ""}
+              </div>
+              <a href="${escapeHtml(sanitizeUrl(vencedora.url))}" target="_blank" rel="noopener noreferrer">Abrir loja ↗</a>
+            </div>
+          `;
+        } else if (lojasCache.length > 0) {
+          bannerHtml = `
+            <div class="melhor-banner" style="background: #f8fafc; border-color: var(--border);">
+              <strong style="color: var(--muted);">⏳ Ainda sem preços — atualize pelo botão lá em cima para buscar nas lojas.</strong>
+            </div>
+          `;
+        }
+
+        const gridHtml = lojasCache.length === 0
+          ? `<div class="hint">Cadastre até 5 lojas na aba <strong>⚙️ Lojas &amp; Config</strong>.</div>`
+          : `<div class="lojas-grid">
+              ${caixas.map((c, idx) => {
+                const ehVencedora = idx === 0 && c.emEstoque && c.ultimoPreco != null;
+                const precoTexto = !c.emEstoque
+                  ? `<span style="color: var(--red);">Esgotado</span>`
+                  : c.ultimoPreco != null
+                  ? formatarMoeda(c.ultimoPreco)
+                  : `<span style="color: var(--muted);">--</span>`;
+
+                let deltaHtml = "";
+                if (c.diferenca < 0) {
+                  deltaHtml = `<div class="delta-down">📉 Abaixou ${formatarMoeda(Math.abs(c.diferenca))}</div>`;
+                } else if (c.diferenca > 0) {
+                  deltaHtml = `<div class="delta-up">📈 Subiu ${formatarMoeda(c.diferenca)}</div>`;
+                }
+
+                return `
+                  <div class="loja-box ${ehVencedora ? "vencedora" : ""}">
+                    <div>
+                      <a class="loja-box-nome" href="${escapeHtml(sanitizeUrl(c.url))}" target="_blank" rel="noopener noreferrer">
+                        ${ehVencedora ? "🏆 " : ""}${escapeHtml(c.loja)} ↗
+                      </a>
+                      <div class="loja-box-preco">${precoTexto}</div>
+                      ${deltaHtml}
+                    </div>
+                    <div class="loja-box-meta" title="${escapeHtml(c.produtoEncontrado || c.statusLeitura)}">
+                      ${c.produtoEncontrado ? escapeHtml(c.produtoEncontrado.slice(0, 42)) : escapeHtml(c.statusLeitura)}
+                    </div>
+                  </div>
+                `;
+              }).join("")}
+            </div>`;
+
+        return `
+          <div class="card perfume-card ${precisaRecomprar ? "alerta" : ""}">
+            <div class="perfume-top">
+              <div>
+                <h3 class="perfume-title">${escapeHtml(p.nome)}</h3>
+                <div class="badges-row">
+                  <span class="badge ${precisaRecomprar ? "badge-alerta" : "badge-ok"}">
+                    ${precisaRecomprar ? `⚠️ ESTOQUE: ${estoqueAtual} (RECOMPRAR)` : `ESTOQUE: ${estoqueAtual}`}
+                  </span>
+                  ${custoPago != null ? `<span class="badge badge-custo">Você pagou: ${formatarMoeda(custoPago)}</span>` : ""}
+                  ${custoBase != null && custoBase !== custoPago ? `<span class="badge badge-custo">Custo base: ${formatarMoeda(custoBase)}</span>` : ""}
+                  ${radar?.termoBusca ? `<span class="badge" style="background: var(--blue-bg); color: var(--blue);">Busca: "${escapeHtml(radar.termoBusca)}"</span>` : ""}
+                </div>
+              </div>
+
+              <button type="button" data-edit-busca="${p.id}" style="font-size: 0.78rem; padding: 5px 9px;" title="Mudar o nome usado para pesquisar nas lojas sem alterar seu catálogo">
+                ✏️ Ajustar busca
+              </button>
+            </div>
+
+            ${bannerHtml}
+            ${gridHtml}
+          </div>
+        `;
+      }).join("");
+    }
+
+    function renderizarVariacoes() {
+      const tipo = filtroVariacao.value;
+
+      if (variacoesCache.length > 0) {
+        badgeVariacoesEl.textContent = variacoesCache.length;
+        badgeVariacoesEl.classList.remove("hidden");
+      } else {
+        badgeVariacoesEl.classList.add("hidden");
+      }
+
+      const filtradas = variacoesCache.filter((v) => {
+        if (tipo === "desceu") return v.diferenca < 0;
+        if (tipo === "subiu") return v.diferenca > 0;
+        return true;
+      });
+
+      if (filtradas.length === 0) {
+        listaVariacoesEl.innerHTML = `
+          <div class="card" style="text-align: center; color: var(--muted);">
+            Nenhuma alteração de preço registrada ainda.
+          </div>`;
+        return;
+      }
+
+      listaVariacoesEl.innerHTML = filtradas.map((v) => {
+        const desceu = v.diferenca < 0;
+        const absDiff = formatarMoeda(Math.abs(v.diferenca));
+        const dataStr = v.data ? new Date(v.data).toLocaleString("pt-BR") : "";
+
+        return `
+          <div class="variacao-item ${desceu ? "desceu" : "subiu"}">
+            <div>
+              <strong>${escapeHtml(v.perfumeNome)}</strong> • <span style="font-weight: 700;">${escapeHtml(v.loja)}</span>
+              <div style="font-size: 0.85rem; color: var(--muted); margin-top: 2px;">
+                De ${formatarMoeda(v.precoAnterior)} para <strong>${formatarMoeda(v.precoNovo)}</strong> • ${dataStr}
+              </div>
+            </div>
+            <div style="font-weight: 800; font-size: 0.98rem; color: ${desceu ? "var(--green)" : "var(--red)"};">
+              ${desceu ? `📉 Abaixou ${absDiff}` : `📈 Subiu ${absDiff}`}
+            </div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    function renderizarLojasCadastro() {
+      const qtd = lojasCache.length;
+      contadorLojasEl.textContent = `${qtd} / ${MAX_LOJAS}`;
+      contadorLojasEl.className = `badge ${qtd >= MAX_LOJAS ? "badge-alerta" : "badge-ok"}`;
+
+      const formLoja = document.getElementById("form-nova-loja");
+      document.getElementById("btn-add-loja").disabled = qtd >= MAX_LOJAS;
+      formLoja.loja.disabled = qtd >= MAX_LOJAS;
+      formLoja.urlBusca.disabled = qtd >= MAX_LOJAS;
+
+      listaLojasCadEl.innerHTML = qtd === 0
+        ? `<div class="hint">Nenhuma loja cadastrada ainda.</div>`
+        : lojasCache.map((l) => `
+          <div class="loja-row">
+            <div>
+              <strong>${escapeHtml(l.nome)}</strong>
+              <div class="hint" style="margin: 0; word-break: break-all;">${escapeHtml(l.urlBusca)}</div>
+            </div>
+            <button type="button" class="btn-danger" data-del-loja="${l.id}">🗑️ Remover</button>
+          </div>
+        `).join("");
+    }
+
+    buscaInput.addEventListener("input", renderizarEstoque);
+    filtroRecompra.addEventListener("change", renderizarEstoque);
+    filtroAbaixoCusto.addEventListener("change", renderizarEstoque);
+
+    listaPerfumesEl.addEventListener("click", async (e) => {
+      const btn = e.target.closest("button[data-edit-busca]");
+      if (!btn) return;
+      const id = btn.dataset.editBusca;
+      const prod = produtosCache.find((p) => p.id === id);
+      const radar = radarMap.get(id);
+      if (!prod) return;
+
+      const atual = radar?.termoBusca || prod.nome;
+      const novo = prompt(
+        `Digite como o robô deve pesquisar "${prod.nome}" nas lojas (deixe vazio para usar o padrão):`,
+        atual
+      );
+      if (novo === null) return;
+
+      await setDoc(doc(db, "radarPrecos", id), {
+        termoBusca: novo.trim() === prod.nome ? "" : novo.trim()
+      }, { merge: true });
+    });
+
+    filtroVariacao.addEventListener("change", renderizarVariacoes);
+    document.getElementById("btn-limpar-variacoes").addEventListener("click", async () => {
+      if (variacoesCache.length === 0) return;
+      if (!confirm("Limpar todo o histórico de variações?")) return;
+      const batch = writeBatch(db);
+      variacoesCache.forEach((v) => batch.delete(doc(db, "variacoes", v.id)));
+      await batch.commit();
+    });
+
+    document.getElementById("form-nova-loja").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (lojasCache.length >= MAX_LOJAS) return;
+      const form = e.target;
+      const nome = form.loja.value.trim();
+      const urlBusca = form.urlBusca.value.trim();
+      if (!nome || !urlBusca) return;
+
+      await addDoc(collection(db, "lojas"), { nome, urlBusca });
+      form.loja.value = "";
+      form.urlBusca.value = "";
+    });
+
+    listaLojasCadEl.addEventListener("click", async (e) => {
+      const btn = e.target.closest("button[data-del-loja]");
+      if (!btn) return;
+      if (confirm("Remover esta loja?")) {
+        await deleteDoc(doc(db, "lojas", btn.dataset.delLoja));
+      }
+    });
+
+    document.getElementById("btn-salvar-min").addEventListener("click", () => {
+      estoqueMinGlobal = Math.max(0, Number(inputMinGlobal.value || 0));
+      localStorage.setItem("bw_min_estoque", String(estoqueMinGlobal));
+      labelMinGlobal.textContent = estoqueMinGlobal;
+      renderizarEstoque();
+      alert("Alerta de estoque mínimo atualizado!");
+    });
+
+    const formGh = document.getElementById("form-github-cfg");
+    const ghCfgSalvo = JSON.parse(localStorage.getItem("gh_cfg") || "{}");
+    if (ghCfgSalvo.repo) formGh.repo.value = ghCfgSalvo.repo;
+    if (ghCfgSalvo.branch) formGh.branch.value = ghCfgSalvo.branch;
+    if (ghCfgSalvo.token) formGh.token.value = ghCfgSalvo.token;
+
+    formGh.addEventListener("submit", (e) => {
+      e.preventDefault();
+      localStorage.setItem("gh_cfg", JSON.stringify({
+        repo: formGh.repo.value.trim(),
+        branch: formGh.branch.value.trim() || "main",
+        token: formGh.token.value.trim()
+      }));
+      alert("Configuração salva neste navegador!");
+    });
+
+    document.getElementById("btn-atualizar-agora").addEventListener("click", async () => {
+      const cfg = JSON.parse(localStorage.getItem("gh_cfg") || "{}");
+      if (!cfg.repo || !cfg.token) {
+        alert("Para atualizar por este botão, configure o repositório e o Token na aba '⚙️ Lojas & Config'.\n\nOu rode manualmente na aba Actions do seu GitHub.");
+        return;
+      }
+
+      statusUpdateEl.classList.remove("hidden");
+      statusUpdateEl.textContent = "⏳ Enviando comando para o robô no GitHub Actions...";
+
+      try {
+        const resp = await fetch(
+          `https://api.github.com/repos/${cfg.repo}/actions/workflows/atualizar-precos.yml/dispatches`,
+          {
+            method: "POST",
+            headers: {
+              Accept: "application/vnd.github+json",
+              Authorization: `Bearer ${cfg.token}`
+            },
+            body: JSON.stringify({ ref: cfg.branch || "main" })
+          }
+        );
+
+        if (resp.ok) {
+          statusUpdateEl.textContent = "✅ Robô iniciado! Os preços serão atualizados aqui na tela assim que ele terminar.";
+        } else {
+          const err = await resp.text();
+          statusUpdateEl.textContent = `❌ Erro (HTTP ${resp.status}): ${err}`;
+        }
+      } catch (err) {
+        statusUpdateEl.textContent = `❌ Erro de conexão: ${err.message}`;
+      }
+    });
+  </script>
+</body>
+</html>
